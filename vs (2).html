@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>釘板大對決：點解 C 係菱形？</title>
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 Google Fonts Noto Sans TC -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+        canvas {
+            touch-action: none; /* 防止手機拖拉釘板時捲動頁面 */
+            cursor: grab;
+        }
+        canvas:active {
+            cursor: grabbing;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+    <!-- 頂部標題與教學重點提示 -->
+    <header class="bg-indigo-600 text-white shadow-md py-4 px-4 sm:px-8">
+        <div class="max-w-6xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div>
+                <h1 class="text-xl sm:text-2xl font-black tracking-wide flex items-center gap-2">
+                    <span>📐</span> 釘板大對決：尋找真正的「菱形」
+                </h1>
+                <p class="text-indigo-100 text-xs sm:text-sm mt-1">
+                    拖拉紅色頂點，觀察兩種釘板上「四條邊嘅長度」有咩唔同！（黑色點係固定唔郁得嘅基準點）
+                </p>
+            </div>
+            <!-- 快捷預設按鈕 -->
+            <div class="flex flex-wrap gap-2">
+                <button id="btnResetC" class="bg-amber-400 hover:bg-amber-300 text-slate-900 font-bold text-xs sm:text-sm px-3 py-2 rounded-lg shadow transition active:scale-95 flex items-center gap-1">
+                    <span>🔄</span> 還原題目「圖形 C」
+                </button>
+                <button id="btnSquareRhombus" class="bg-white/20 hover:bg-white/30 text-white font-medium text-xs sm:text-sm px-3 py-2 rounded-lg transition active:scale-95">
+                    示範：正方形釘板圍出正方形
+                </button>
+                <button id="btnToggleGuide" class="bg-indigo-800 hover:bg-indigo-900 text-indigo-100 font-medium text-xs sm:text-sm px-3 py-2 rounded-lg transition active:scale-95">
+                    👁️ 顯示/隱藏 格線輔助
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主要互動區域：左右兩款釘板對比 -->
+    <main class="flex-grow max-w-6xl w-full mx-auto p-4 sm:p-6 flex flex-col gap-6">
+        
+        <!-- 兩欄網格 -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            
+            <!-- 左側：三角形釘板 (等距點陣) -->
+            <section class="bg-white rounded-2xl shadow-lg border-2 border-emerald-200 overflow-hidden flex flex-col">
+                <div class="bg-emerald-50 border-b border-emerald-100 px-5 py-3 flex items-center justify-between">
+                    <div>
+                        <span class="inline-block bg-emerald-600 text-white text-xs font-bold px-2.5 py-0.5 rounded-full mb-1">題目款式</span>
+                        <h2 class="text-lg font-bold text-emerald-950">1. 三角形釘板（等距點陣）</h2>
+                    </div>
+                    <div id="statusIso" class="px-3 py-1.5 rounded-xl text-sm font-black shadow-sm bg-emerald-500 text-white">
+                        ✨ 係菱形！
+                    </div>
+                </div>
+
+                <!-- Canvas 容器 -->
+                <div class="relative w-full aspect-[4/3] bg-slate-50/50 flex items-center justify-center p-2">
+                    <canvas id="canvasIso" class="w-full h-full rounded-xl"></canvas>
+                </div>
+
+                <!-- 數據分析面板 -->
+                <div class="p-4 bg-white border-t border-slate-100 flex flex-col gap-2">
+                    <div class="flex items-center justify-between text-xs font-bold text-slate-500">
+                        <span>四條邊長度（以相鄰兩點距離 = 1 cm 計算）：</span>
+                        <span id="angleIso" class="text-emerald-700">角度：60° / 120°</span>
+                    </div>
+                    <div id="lengthsIso" class="grid grid-cols-4 gap-2 text-center">
+                        <!-- JS 動態填入 -->
+                    </div>
+                    <p id="explainIso" class="text-xs sm:text-sm text-emerald-800 bg-emerald-50/80 p-2.5 rounded-lg mt-1 leading-relaxed">
+                        💡 <b>發現：</b>因為相鄰三點組成<strong>等邊三角形</strong>，所以無論打橫定打斜連去隔離點，距離都係 <b>1 cm</b>！四條邊都係 2 cm，所以<b>一定係菱形</b>！
+                    </p>
+                </div>
+            </section>
+
+            <!-- 右側：正方形釘板 (方格點陣) -->
+            <section class="bg-white rounded-2xl shadow-lg border-2 border-rose-200 overflow-hidden flex flex-col">
+                <div class="bg-rose-50 border-b border-rose-100 px-5 py-3 flex items-center justify-between">
+                    <div>
+                        <span class="inline-block bg-rose-600 text-white text-xs font-bold px-2.5 py-0.5 rounded-full mb-1">平時常見</span>
+                        <h2 class="text-lg font-bold text-rose-950">2. 正方形釘板（方格點陣）</h2>
+                    </div>
+                    <div id="statusSq" class="px-3 py-1.5 rounded-xl text-sm font-black shadow-sm bg-rose-500 text-white">
+                        ❌ 唔係菱形（只係平行四邊形）
+                    </div>
+                </div>
+
+                <!-- Canvas 容器 -->
+                <div class="relative w-full aspect-[4/3] bg-slate-50/50 flex items-center justify-center p-2">
+                    <canvas id="canvasSq" class="w-full h-full rounded-xl"></canvas>
+                </div>
+
+                <!-- 數據分析面板 -->
+                <div class="p-4 bg-white border-t border-slate-100 flex flex-col gap-2">
+                    <div class="flex items-center justify-between text-xs font-bold text-slate-500">
+                        <span>四條邊長度（以橫/直相鄰距離 = 1 cm 計算）：</span>
+                        <span id="angleSq" class="text-rose-700">對邊相等，鄰邊不等</span>
+                    </div>
+                    <div id="lengthsSq" class="grid grid-cols-4 gap-2 text-center">
+                        <!-- JS 動態填入 -->
+                    </div>
+                    <p id="explainSq" class="text-xs sm:text-sm text-rose-800 bg-rose-50/80 p-2.5 rounded-lg mt-1 leading-relaxed">
+                        ⚠️ <b>陷阱：</b>喺正方形釘板上，打斜行一格（對角線）長度係 <b>1.41 cm</b>（長過橫/直嘅 1 cm）！所以咁樣斜放會變成「長短邊」，只係普通平行四邊形。
+                    </p>
+                </div>
+            </section>
+
+        </div>
+
+        <!-- 底部操作圖例說明 -->
+        <footer class="bg-white rounded-xl p-4 shadow-sm border border-slate-200 flex flex-wrap items-center justify-center gap-6 text-xs sm:text-sm text-slate-600">
+            <div class="flex items-center gap-2">
+                <span class="w-4 h-4 rounded-full bg-slate-900 border-2 border-amber-400 inline-block shadow"></span>
+                <span><strong>固定基準點</strong>（鎖定位置，不可移動）</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <span class="w-4 h-4 rounded-full bg-red-500 border-2 border-white inline-block shadow"></span>
+                <span><strong>可移動頂點</strong>（用滑鼠或手指按住拖拉）</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <span class="px-2 py-0.5 bg-amber-100 text-amber-800 font-bold rounded">菱形定義</span>
+                <span>四條邊長度<strong>全部相等</strong>的四邊形（正方形屬於菱形家族）</span>
+            </div>
+        </footer>
+
+    </main>
+
+    <script>
+        /**
+         * 釘板菱形互動教學模擬器
+         * 支援：
+         * 1. 等距三角形點陣 (Isometric Grid)
+         * 2. 正方形點陣 (Square Grid)
+         * 功能：固定其中一個基準點，其餘三點可自由吸附拖拉，即時計算四邊長度並判斷是否為菱形。
+         */
+
+        // 全局設定
+        let showGuideLines = true;
+
+        // 顏色設定
+        const COLORS = {
+            peg: '#94a3b8',
+            pegHover: '#64748b',
+            fixedDot: '#0f172a',
+            fixedRing: '#fbbf24',
+            dragDot: '#ef4444',
+            dragDotActive: '#dc2626',
+            rhombusFill: 'rgba(16, 185, 129, 0.22)',
+            rhombusStroke: '#059669',
+            nonRhombusFill: 'rgba(244, 63, 94, 0.18)',
+            nonRhombusStroke: '#e11d48',
+            guideLine: 'rgba(148, 163, 184, 0.28)'
+        };
+
+        /**
+         * 釘板控制器類別
+         */
+        class Geoboard {
+            constructor(canvasId, type) {
+                this.canvas = document.getElementById(canvasId);
+                this.ctx = this.canvas.getContext('2d');
+                this.type = type; // 'iso' 或 'sq'
+                this.pegs = [];   // 儲存所有釘子座標 {x, y, gx, gy}
+                this.vertices = []; // 4個頂點，index 0 為固定點，其餘為對應 pegs 的 index 或直接存 {gx, gy}
+                this.draggingIdx = -1;
+                this.hoverPeg = null;
+                this.spacing = 48;
+
+                this.initGrid();
+                this.setDefaultShapeC();
+                this.bindEvents();
+            }
+
+            // 建立邏輯網格座標 (gx, gy)
+            // 為了方便定位，我們用邏輯座標 (col, row) 儲存頂點，resize 時自動重新換算螢幕像素 (x, y)
+            initGrid() {
+                this.gridCols = this.type === 'iso' ? 8 : 8;
+                this.gridRows = 6;
+            }
+
+            // 將邏輯座標轉換為畫布像素座標
+            gridToPixel(col, row) {
+                const rect = this.canvas.getBoundingClientRect();
+                const w = rect.width;
+                const h = rect.height;
+
+                if (this.type === 'sq') {
+                    const padX = w * 0.12;
+                    const padY = h * 0.14;
+                    const stepX = (w - padX * 2) / (this.gridCols - 1);
+                    const stepY = (h - padY * 2) / (this.gridRows - 1);
+                    const step = Math.min(stepX, stepY);
+                    this.spacing = step;
+
+                    const totalW = step * (this.gridCols - 1);
+                    const totalH = step * (this.gridRows - 1);
+                    const startX = (w - totalW) / 2;
+                    const startY = (h - totalH) / 2;
+
+                    return {
+                        x: startX + col * step,
+                        y: startY + row * step
+                    };
+                } else {
+                    // 等距三角形點陣：相鄰兩點距離為 step
+                    // 水平間距 = step，垂直層距 = step * sin(60°)
+                    const sin60 = Math.sqrt(3) / 2;
+                    const padX = w * 0.10;
+                    const padY = h * 0.14;
+                    const stepX = (w - padX * 2) / (this.gridCols - 0.5);
+                    const stepY = (h - padY * 2) / ((this.gridRows - 1) * sin60);
+                    const step = Math.min(stepX, stepY);
+                    this.spacing = step;
+
+                    const totalW = step * (this.gridCols - 0.5);
+                    const totalH = step * (this.gridRows - 1) * sin60;
+                    const startX = (w - totalW) / 2;
+                    const startY = (h - totalH) / 2;
+
+                    // 奇數列向右偏移 0.5 格（符合題目圖片排列：頂列對齊，第二列右移半格）
+                    const offsetX = (row % 2 === 1) ? step * 0.5 : 0;
+
+                    return {
+                        x: startX + col * step + offsetX,
+                        y: startY + row * step * sin60
+                    };
+                }
+            }
+
+            // 取得真實數學單位座標（用於精準計算邊長，相鄰釘距 = 1）
+            gridToMathUnit(col, row) {
+                if (this.type === 'sq') {
+                    return { ux: col, uy: row };
+                } else {
+                    const sin60 = Math.sqrt(3) / 2;
+                    const offsetX = (row % 2 === 1) ? 0.5 : 0;
+                    return {
+                        ux: col + offsetX,
+                        uy: row * sin60
+                    };
+                }
+            }
+
+            // 還原題目中的「圖形 C」
+            setDefaultShapeC() {
+                if (this.type === 'iso') {
+                    // 在等距點陣中，還原題目左下角的 C 菱形（邊長 = 2 單位）
+                    // 左下角 (1, 4) 為固定點
+                    // 右下角 (3, 4) -> 距離 2
+                    // 右上角 (4, 2) -> 從 (3,4) 往右上兩步：(3,4)->(3,3)->(4,2)，距離 2
+                    // 左上角 (2, 2) -> 從 (1,4) 往右上兩步：(1,4)->(1,3)->(2,2)，距離 2
+                    this.vertices = [
+                        { col: 1, row: 4, fixed: true },  // 左下（固定基準點）
+                        { col: 3, row: 4, fixed: false }, // 右下
+                        { col: 4, row: 2, fixed: false }, // 右上
+                        { col: 2, row: 2, fixed: false }  // 左上
+                    ];
+                } else {
+                    // 在正方形點陣中，擺出視覺上「好似 C 咁斜放」的平行四邊形
+                    // 左下角 (1, 4) 為固定點
+                    // 底邊向右 2 格：(3, 4) -> 長度 2
+                    // 斜邊向上 2 格右移 1 格：(4, 2) 與 (2, 2) -> 長度 sqrt(1^2 + 2^2) = 2.24
+                    this.vertices = [
+                        { col: 1, row: 4, fixed: true },  // 左下（固定基準點）
+                        { col: 3, row: 4, fixed: false }, // 右下
+                        { col: 4, row: 2, fixed: false }, // 右上
+                        { col: 2, row: 2, fixed: false }  // 左上
+                    ];
+                }
+                this.updateAndRender();
+            }
+
+            // 示範如何在正方形釘板圍出真正的菱形（例如斜放的正方形，或 3-4-5 勾股菱形）
+            setSquareDemoRhombus() {
+                if (this.type === 'sq') {
+                    // 圍出一個斜放的正方形（四邊皆為 sqrt(2^2 + 2^2) = 2.83，四邊相等！）
+                    this.vertices = [
+                        { col: 1, row: 3, fixed: true },  // 左（固定基準點）
+                        { col: 3, row: 5, fixed: false }, // 下
+                        { col: 5, row: 3, fixed: false }, // 右
+                        { col: 3, row: 1, fixed: false }  // 上
+                    ];
+                } else {
+                    // 等距點陣保持題目 C 或另一款菱形
+                    this.vertices = [
+                        { col: 1, row: 4, fixed: true },
+                        { col: 3, row: 4, fixed: false },
+                        { col: 4, row: 2, fixed: false },
+                        { col: 2, row: 2, fixed: false }
+                    ];
+                }
+                this.updateAndRender();
+            }
+
+            // 生成所有釘子像素列表
+            buildPegList() {
+                this.pegs = [];
+                for (let r = 0; r < this.gridRows; r++) {
+                    // 等距點陣奇數列少一粒以保持左右邊界整齊
+                    const maxCol = (this.type === 'iso' && r % 2 === 1) ? this.gridCols - 1 : this.gridCols;
+                    for (let c = 0; c < maxCol; c++) {
+                        const pos = this.gridToPixel(c, r);
+                        this.pegs.push({
+                            col: c,
+                            row: r,
+                            x: pos.x,
+                            y: pos.y
+                        });
+                    }
+                }
+            }
+
+            // 處理高清螢幕 (Retina) 尺寸
+            resize() {
+                const dpr = window.devicePixelRatio || 1;
+                const rect = this.canvas.getBoundingClientRect();
+                this.canvas.width = rect.width * dpr;
+                this.canvas.height = rect.height * dpr;
+                this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+                this.updateAndRender();
+            }
+
+            // 計算四邊形幾何屬性
+            analyzeShape() {
+                const units = this.vertices.map(v => this.gridToMathUnit(v.col, v.row));
+                const sideNames = ['底邊', '右邊', '頂邊', '左邊'];
+                const lengths = [];
+
+                for (let i = 0; i < 4; i++) {
+                    const p1 = units[i];
+                    const p2 = units[(i + 1) % 4];
+                    const dist = Math.hypot(p2.ux - p1.ux, p2.uy - p1.uy);
+                    const numStr = Number.isInteger(Math.round(dist * 1000) / 1000)
+                        ? Math.round(dist).toString()
+                        : dist.toFixed(2);
+                    lengths.push({
+                        name: sideNames[i],
+                        value: dist,
+                        label: `${numStr} cm`,
+                        shortNum: numStr
+                    });
+                }
+
+                // 檢查四邊是否全部相等（允許極小浮點誤差）
+                const baseLen = lengths[0].value;
+                const allSidesEqual = baseLen > 0.01 && lengths.every(l => Math.abs(l.value - baseLen) < 0.01);
+
+                // 檢查對角線是否相等（四邊相等且對角線相等 => 四個角皆為直角 => 正方形）
+                const diag1 = Math.hypot(units[2].ux - units[0].ux, units[2].uy - units[0].uy);
+                const diag2 = Math.hypot(units[3].ux - units[1].ux, units[3].uy - units[1].uy);
+                const diagonalsEqual = Math.abs(diag1 - diag2) < 0.01;
+
+                // 檢查是否有退化（三點共線或面積為0）
+                const area = Math.abs(
+                    (units[0].ux * units[1].uy - units[1].ux * units[0].uy) +
+                    (units[1].ux * units[2].uy - units[2].ux * units[1].uy) +
+                    (units[2].ux * units[3].uy - units[3].ux * units[2].uy) +
+                    (units[3].ux * units[0].uy - units[0].ux * units[3].uy)
+                ) / 2;
+
+                const isValidPolygon = area > 0.1;
+                const isRhombus = isValidPolygon && allSidesEqual;
+                const isSquare = isRhombus && diagonalsEqual;
+
+                return { lengths, isRhombus, isSquare, isValidPolygon, baseLen };
+            }
+
+            // 更新右側/左側 HTML 數據面板
+            updateUI(analysis) {
+                const suffix = this.type === 'iso' ? 'Iso' : 'Sq';
+                const statusEl = document.getElementById(`status${suffix}`);
+                const lengthsEl = document.getElementById(`lengths${suffix}`);
+                const angleEl = document.getElementById(`angle${suffix}`);
+                const explainEl = document.getElementById(`explain${suffix}`);
+
+                // 更新邊長格子
+                lengthsEl.innerHTML = analysis.lengths.map((l, idx) => {
+                    const isSameAsFirst = Math.abs(l.value - analysis.lengths[0].value) < 0.01;
+                    const badgeColor = analysis.isSquare
+                        ? 'bg-sky-100 text-sky-900 border-sky-300'
+                        : (analysis.isRhombus
+                            ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                            : (isSameAsFirst ? 'bg-slate-100 text-slate-800 border-slate-300' : 'bg-rose-100 text-rose-900 border-rose-300 font-black'));
+                    return `
+                        <div class="border rounded-lg py-1.5 px-1 ${badgeColor}">
+                            <div class="text-[10px] opacity-75">${l.name}</div>
+                            <div class="text-xs sm:text-sm font-bold">${l.label}</div>
+                        </div>
+                    `;
+                }).join('');
+
+                // 更新狀態徽章與文字解說
+                if (!analysis.isValidPolygon) {
+                    statusEl.className = 'px-3 py-1.5 rounded-xl text-xs sm:text-sm font-black shadow-sm bg-slate-500 text-white';
+                    statusEl.textContent = '⚠️ 請拉開頂點形成四邊形';
+                    angleEl.textContent = '形狀重疊';
+                } else if (analysis.isSquare) {
+                    statusEl.className = 'px-3 py-1.5 rounded-xl text-xs sm:text-sm font-black shadow-sm bg-sky-600 text-white';
+                    statusEl.textContent = '🟦 係正方形！（屬於菱形家族）';
+                    angleEl.textContent = `四邊 ${analysis.lengths[0].label}，四隻直角`;
+                    explainEl.innerHTML = `🟦 <b>區分正方形與菱形：</b>四條邊都係 <b>${analysis.lengths[0].label}</b>，而且四隻角都係<strong>直角（90°）</strong>，所以佢叫<strong>正方形</strong>（正方形同時亦屬於菱形家族）！`;
+                } else if (analysis.isRhombus) {
+                    statusEl.className = 'px-3 py-1.5 rounded-xl text-xs sm:text-sm font-black shadow-sm bg-emerald-500 text-white';
+                    statusEl.textContent = '✨ 係菱形！（四邊相等）';
+                    angleEl.textContent = `四邊皆為 ${analysis.lengths[0].label}（非直角）`;
+                    if (this.type === 'iso') {
+                        explainEl.innerHTML = `💡 <b>成功！</b>四條邊都係 <b>${analysis.lengths[0].label}</b>，而且四隻角唔係直角！喺三角形釘板上，斜邊同橫邊步距完全一樣，所以佢係標準嘅<strong>菱形</strong>！`;
+                    } else {
+                        explainEl.innerHTML = `🎉 <b>犀利！</b>你喺正方形釘板上圍出四邊相等（<b>${analysis.lengths[0].label}</b>）且非直角嘅<strong>菱形</strong>（例如 3-4-5 勾股邊長）！`;
+                    }
+                } else {
+                    statusEl.className = 'px-3 py-1.5 rounded-xl text-xs sm:text-sm font-black shadow-sm bg-rose-500 text-white';
+                    statusEl.textContent = '❌ 唔係菱形（四邊唔同長）';
+                    angleEl.textContent = '邊長不一致';
+                    if (this.type === 'sq') {
+                        explainEl.innerHTML = `⚠️ <b>睇清楚邊長：</b>四條邊分別係 <b>${analysis.lengths.map(l => l.label).join('、')}</b>。因為正方形點陣斜行距離較長，所以唔係菱形！`;
+                    } else {
+                        explainEl.innerHTML = `🔍 <b>試下再調校：</b>而家四條邊分別係 <b>${analysis.lengths.map(l => l.label).join('、')}</b>，要四條邊數字完全一樣先係菱形喔！`;
+                    }
+                }
+            }
+
+            // 繪製輔助網格線（幫助學生看清三角形 vs 正方形結構）
+            drawGuideLines() {
+                if (!showGuideLines) return;
+                const ctx = this.ctx;
+                ctx.save();
+                ctx.strokeStyle = COLORS.guideLine;
+                ctx.lineWidth = 1;
+                ctx.setLineDash([4, 4]);
+
+                // 連接相鄰距離為 1 單位的釘子
+                for (let i = 0; i < this.pegs.length; i++) {
+                    const p1 = this.pegs[i];
+                    const u1 = this.gridToMathUnit(p1.col, p1.row);
+                    for (let j = i + 1; j < this.pegs.length; j++) {
+                        const p2 = this.pegs[j];
+                        const u2 = this.gridToMathUnit(p2.col, p2.row);
+                        const dist = Math.hypot(u2.ux - u1.ux, u2.uy - u1.uy);
+                        if (Math.abs(dist - 1) < 0.05) {
+                            ctx.beginPath();
+                            ctx.moveTo(p1.x, p1.y);
+                            ctx.lineTo(p2.x, p2.y);
+                            ctx.stroke();
+                        }
+                    }
+                }
+                ctx.restore();
+            }
+
+            // 主繪圖函式
+            updateAndRender() {
+                this.buildPegList();
+                const analysis = this.analyzeShape();
+                this.updateUI(analysis);
+
+                const ctx = this.ctx;
+                const rect = this.canvas.getBoundingClientRect();
+                ctx.clearRect(0, 0, rect.width, rect.height);
+
+                // 1. 畫輔助點陣結構線（三角形或正方形）
+                this.drawGuideLines();
+
+                // 2. 畫背景所有釘子
+                for (const peg of this.pegs) {
+                    ctx.beginPath();
+                    ctx.arc(peg.x, peg.y, 4.5, 0, Math.PI * 2);
+                    ctx.fillStyle = (this.hoverPeg && this.hoverPeg.col === peg.col && this.hoverPeg.row === peg.row)
+                        ? COLORS.pegHover
+                        : COLORS.peg;
+                    ctx.fill();
+                }
+
+                // 3. 畫多邊形填色與邊線
+                const pts = this.vertices.map(v => this.gridToPixel(v.col, v.row));
+                ctx.save();
+                ctx.beginPath();
+                ctx.moveTo(pts[0].x, pts[0].y);
+                for (let i = 1; i < pts.length; i++) {
+                    ctx.lineTo(pts[i].x, pts[i].y);
+                }
+                ctx.closePath();
+
+                ctx.fillStyle = analysis.isSquare
+                    ? 'rgba(14, 165, 233, 0.22)'
+                    : (analysis.isRhombus ? COLORS.rhombusFill : COLORS.nonRhombusFill);
+                ctx.fill();
+
+                ctx.lineWidth = 4;
+                ctx.lineJoin = 'round';
+                ctx.strokeStyle = analysis.isSquare
+                    ? '#0284c7'
+                    : (analysis.isRhombus ? COLORS.rhombusStroke : COLORS.nonRhombusStroke);
+                ctx.stroke();
+                ctx.restore();
+
+                // 4. 在每條邊的中點標示即時長度標籤
+                for (let i = 0; i < 4; i++) {
+                    const p1 = pts[i];
+                    const p2 = pts[(i + 1) % 4];
+                    const mx = (p1.x + p2.x) / 2;
+                    const my = (p1.y + p2.y) / 2;
+                    const label = analysis.lengths[i].label;
+
+                    ctx.save();
+                    ctx.font = 'bold 11px "Noto Sans TC", sans-serif';
+                    const textW = ctx.measureText(label).width;
+                    const boxW = Math.max(38, textW + 10);
+                    const boxH = 20;
+
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.94)';
+                    ctx.strokeStyle = analysis.isSquare
+                        ? '#0284c7'
+                        : (analysis.isRhombus ? COLORS.rhombusStroke : COLORS.nonRhombusStroke);
+                    ctx.lineWidth = 1.5;
+
+                    ctx.beginPath();
+                    ctx.roundRect(mx - boxW / 2, my - boxH / 2, boxW, boxH, 6);
+                    ctx.fill();
+                    ctx.stroke();
+
+                    ctx.fillStyle = '#1e293b';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(label, mx, my + 0.5);
+                    ctx.restore();
+                }
+
+                // 5. 畫四個頂點（固定點 vs 可拖拉點）
+                pts.forEach((pt, idx) => {
+                    const isFixed = this.vertices[idx].fixed;
+                    const isDragging = this.draggingIdx === idx;
+
+                    ctx.save();
+                    if (isFixed) {
+                        // 固定基準點：黑色實心 + 金色外圈 + 鎖頭/文字提示
+                        ctx.beginPath();
+                        ctx.arc(pt.x, pt.y, 11, 0, Math.PI * 2);
+                        ctx.fillStyle = COLORS.fixedRing;
+                        ctx.fill();
+
+                        ctx.beginPath();
+                        ctx.arc(pt.x, pt.y, 7.5, 0, Math.PI * 2);
+                        ctx.fillStyle = COLORS.fixedDot;
+                        ctx.fill();
+
+                        // 標註「固定」小字
+                        ctx.font = 'bold 11px "Noto Sans TC", sans-serif';
+                        ctx.fillStyle = '#0f172a';
+                        ctx.textAlign = 'center';
+                        ctx.fillText('固定點', pt.x, pt.y + 22);
+                    } else {
+                        // 可移動頂點：紅色大圓點 + 白色外框
+                        if (isDragging) {
+                            ctx.beginPath();
+                            ctx.arc(pt.x, pt.y, 16, 0, Math.PI * 2);
+                            ctx.fillStyle = 'rgba(239, 68, 68, 0.25)';
+                            ctx.fill();
+                        }
+
+                        ctx.beginPath();
+                        ctx.arc(pt.x, pt.y, isDragging ? 11 : 9.5, 0, Math.PI * 2);
+                        ctx.fillStyle = isDragging ? COLORS.dragDotActive : COLORS.dragDot;
+                        ctx.fill();
+
+                        ctx.lineWidth = 2.5;
+                        ctx.strokeStyle = '#ffffff';
+                        ctx.stroke();
+                    }
+                    ctx.restore();
+                });
+            }
+
+            // 取得滑鼠或觸控相對於 Canvas 的座標
+            getPointerPos(e) {
+                const rect = this.canvas.getBoundingClientRect();
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                return {
+                    x: clientX - rect.left,
+                    y: clientY - rect.top
+                };
+            }
+
+            // 尋找最接近指標的釘子
+            findNearestPeg(x, y) {
+                let nearest = null;
+                let minDist = this.spacing * 0.6;
+                for (const peg of this.pegs) {
+                    const d = Math.hypot(peg.x - x, peg.y - y);
+                    if (d < minDist) {
+                        minDist = d;
+                        nearest = peg;
+                    }
+                }
+                return nearest;
+            }
+
+            // 綁定滑鼠與觸控互動事件
+            bindEvents() {
+                const onStart = (e) => {
+                    const pos = this.getPointerPos(e);
+                    const pts = this.vertices.map(v => this.gridToPixel(v.col, v.row));
+
+                    // 檢查是否點中可移動頂點（index 1, 2, 3）
+                    let closestIdx = -1;
+                    let minDist = 28; // 加大觸控感應半徑方便手指操作
+                    for (let i = 1; i < pts.length; i++) {
+                        const d = Math.hypot(pts[i].x - pos.x, pts[i].y - pos.y);
+                        if (d < minDist) {
+                            minDist = d;
+                            closestIdx = i;
+                        }
+                    }
+
+                    if (closestIdx !== -1) {
+                        this.draggingIdx = closestIdx;
+                        this.updateAndRender();
+                        if (e.cancelable) e.preventDefault();
+                    }
+                };
+
+                const onMove = (e) => {
+                    const pos = this.getPointerPos(e);
+                    if (this.draggingIdx !== -1) {
+                        const nearest = this.findNearestPeg(pos.x, pos.y);
+                        if (nearest) {
+                            // 避免與其他頂點完全重疊
+                            const occupied = this.vertices.some((v, idx) =>
+                                idx !== this.draggingIdx && v.col === nearest.col && v.row === nearest.row
+                            );
+                            if (!occupied) {
+                                this.vertices[this.draggingIdx].col = nearest.col;
+                                this.vertices[this.draggingIdx].row = nearest.row;
+                                this.updateAndRender();
+                            }
+                        }
+                        if (e.cancelable) e.preventDefault();
+                    } else {
+                        // 懸停提示
+                        const nearest = this.findNearestPeg(pos.x, pos.y);
+                        if (nearest !== this.hoverPeg) {
+                            this.hoverPeg = nearest;
+                            this.updateAndRender();
+                        }
+                    }
+                };
+
+                const onEnd = () => {
+                    if (this.draggingIdx !== -1) {
+                        this.draggingIdx = -1;
+                        this.updateAndRender();
+                    }
+                };
+
+                this.canvas.addEventListener('mousedown', onStart);
+                window.addEventListener('mousemove', onMove);
+                window.addEventListener('mouseup', onEnd);
+
+                this.canvas.addEventListener('touchstart', onStart, { passive: false });
+                window.addEventListener('touchmove', onMove, { passive: false });
+                window.addEventListener('touchend', onEnd);
+            }
+        }
+
+        // 初始化兩個釘板實例
+        let isoBoard, sqBoard;
+
+        window.onload = () => {
+            isoBoard = new Geoboard('canvasIso', 'iso');
+            sqBoard = new Geoboard('canvasSq', 'sq');
+
+            const handleResize = () => {
+                isoBoard.resize();
+                sqBoard.resize();
+            };
+
+            handleResize();
+            window.addEventListener('resize', handleResize);
+
+            // 按鈕互動
+            document.getElementById('btnResetC').addEventListener('click', () => {
+                isoBoard.setDefaultShapeC();
+                sqBoard.setDefaultShapeC();
+            });
+
+            document.getElementById('btnSquareRhombus').addEventListener('click', () => {
+                sqBoard.setSquareDemoRhombus();
+            });
+
+            document.getElementById('btnToggleGuide').addEventListener('click', () => {
+                showGuideLines = !showGuideLines;
+                isoBoard.updateAndRender();
+                sqBoard.updateAndRender();
+            });
+        };
+    </script>
+</body>
+</html>
