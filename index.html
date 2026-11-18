@@ -367,6 +367,11 @@
                 const diag2 = Math.hypot(units[3].ux - units[1].ux, units[3].uy - units[1].uy);
                 const diagonalsEqual = Math.abs(diag1 - diag2) < 0.01;
 
+                // 檢查兩組對邊是否分別相等（凸四邊形中兩組對邊相等 => 必為平行四邊形）
+                const oppSidesEqual =
+                    Math.abs(lengths[0].value - lengths[2].value) < 0.01 &&
+                    Math.abs(lengths[1].value - lengths[3].value) < 0.01;
+
                 // 檢查是否有退化（三點共線或面積為0）
                 const area = Math.abs(
                     (units[0].ux * units[1].uy - units[1].ux * units[0].uy) +
@@ -376,10 +381,12 @@
                 ) / 2;
 
                 const isValidPolygon = area > 0.1;
-                const isRhombus = isValidPolygon && allSidesEqual;
+                const isParallelogram = isValidPolygon && oppSidesEqual;
+                const isRhombus = isParallelogram && allSidesEqual;
                 const isSquare = isRhombus && diagonalsEqual;
+                const isRectangle = isParallelogram && !allSidesEqual && diagonalsEqual;
 
-                return { lengths, isRhombus, isSquare, isValidPolygon, baseLen };
+                return { lengths, isRhombus, isSquare, isRectangle, isParallelogram, isValidPolygon, baseLen };
             }
 
             // 更新右側/左側 HTML 數據面板
@@ -397,7 +404,9 @@
                         ? 'bg-sky-100 text-sky-900 border-sky-300'
                         : (analysis.isRhombus
                             ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
-                            : (isSameAsFirst ? 'bg-slate-100 text-slate-800 border-slate-300' : 'bg-rose-100 text-rose-900 border-rose-300 font-black'));
+                            : (analysis.isParallelogram
+                                ? 'bg-amber-100 text-amber-900 border-amber-300'
+                                : (isSameAsFirst ? 'bg-slate-100 text-slate-800 border-slate-300' : 'bg-rose-100 text-rose-900 border-rose-300 font-black')));
                     return `
                         <div class="border rounded-lg py-1.5 px-1 ${badgeColor}">
                             <div class="text-[10px] opacity-75">${l.name}</div>
@@ -425,15 +434,25 @@
                     } else {
                         explainEl.innerHTML = `🎉 <b>犀利！</b>你喺正方形釘板上圍出四邊相等（<b>${analysis.lengths[0].label}</b>）且非直角嘅<strong>菱形</strong>（例如 3-4-5 勾股邊長）！`;
                     }
+                } else if (analysis.isRectangle) {
+                    statusEl.className = 'px-3 py-1.5 rounded-xl text-xs sm:text-sm font-black shadow-sm bg-indigo-500 text-white';
+                    statusEl.textContent = '🟪 係長方形！（對邊相等，四隻直角）';
+                    angleEl.textContent = `鄰邊 ${analysis.lengths[0].label} 與 ${analysis.lengths[1].label}（直角）`;
+                    explainEl.innerHTML = `🟪 <b>係長方形（唔係菱形）：</b>兩組對邊分別相等（<b>${analysis.lengths[0].label}</b> 同 <b>${analysis.lengths[1].label}</b>）而且四隻角係直角，但四邊唔係全部一樣長，所以唔係菱形！`;
+                } else if (analysis.isParallelogram) {
+                    statusEl.className = 'px-3 py-1.5 rounded-xl text-xs sm:text-sm font-black shadow-sm bg-amber-500 text-slate-900';
+                    statusEl.textContent = '🟨 係普通平行四邊形！（唔係菱形）';
+                    angleEl.textContent = `對邊相等（${analysis.lengths[0].label} / ${analysis.lengths[1].label}）`;
+                    if (this.type === 'sq') {
+                        explainEl.innerHTML = `⚠️ <b>區分平行四邊形與菱形：</b>兩組對邊平行且相等（<b>${analysis.lengths[0].label}</b> 對 <b>${analysis.lengths[2].label}</b>；<b>${analysis.lengths[1].label}</b> 對 <b>${analysis.lengths[3].label}</b>），但鄰邊唔同長，所以只係<strong>普通平行四邊形</strong>，唔係菱形！`;
+                    } else {
+                        explainEl.innerHTML = `🟨 <b>係普通平行四邊形：</b>兩組對邊分別相等（<b>${analysis.lengths[0].label}</b> 同 <b>${analysis.lengths[1].label}</b>），但四條邊唔係全部一樣長，所以唔係菱形！`;
+                    }
                 } else {
                     statusEl.className = 'px-3 py-1.5 rounded-xl text-xs sm:text-sm font-black shadow-sm bg-rose-500 text-white';
-                    statusEl.textContent = '❌ 唔係菱形（四邊唔同長）';
-                    angleEl.textContent = '邊長不一致';
-                    if (this.type === 'sq') {
-                        explainEl.innerHTML = `⚠️ <b>睇清楚邊長：</b>四條邊分別係 <b>${analysis.lengths.map(l => l.label).join('、')}</b>。因為正方形點陣斜行距離較長，所以唔係菱形！`;
-                    } else {
-                        explainEl.innerHTML = `🔍 <b>試下再調校：</b>而家四條邊分別係 <b>${analysis.lengths.map(l => l.label).join('、')}</b>，要四條邊數字完全一樣先係菱形喔！`;
-                    }
+                    statusEl.textContent = '❌ 唔係菱形（亦非平行四邊形）';
+                    angleEl.textContent = '對邊不相等';
+                    explainEl.innerHTML = `🔍 <b>一般四邊形：</b>而家四條邊分別係 <b>${analysis.lengths.map(l => l.label).join('、')}</b>，連對邊都唔相等，既唔係平行四邊形，亦唔係菱形！`;
                 }
             }
 
@@ -500,14 +519,22 @@
 
                 ctx.fillStyle = analysis.isSquare
                     ? 'rgba(14, 165, 233, 0.22)'
-                    : (analysis.isRhombus ? COLORS.rhombusFill : COLORS.nonRhombusFill);
+                    : (analysis.isRhombus
+                        ? COLORS.rhombusFill
+                        : (analysis.isRectangle
+                            ? 'rgba(99, 102, 241, 0.20)'
+                            : (analysis.isParallelogram ? 'rgba(245, 158, 11, 0.22)' : COLORS.nonRhombusFill)));
                 ctx.fill();
 
                 ctx.lineWidth = 4;
                 ctx.lineJoin = 'round';
                 ctx.strokeStyle = analysis.isSquare
                     ? '#0284c7'
-                    : (analysis.isRhombus ? COLORS.rhombusStroke : COLORS.nonRhombusStroke);
+                    : (analysis.isRhombus
+                        ? COLORS.rhombusStroke
+                        : (analysis.isRectangle
+                            ? '#4f46e5'
+                            : (analysis.isParallelogram ? '#d97706' : COLORS.nonRhombusStroke)));
                 ctx.stroke();
                 ctx.restore();
 
@@ -528,7 +555,11 @@
                     ctx.fillStyle = 'rgba(255, 255, 255, 0.94)';
                     ctx.strokeStyle = analysis.isSquare
                         ? '#0284c7'
-                        : (analysis.isRhombus ? COLORS.rhombusStroke : COLORS.nonRhombusStroke);
+                        : (analysis.isRhombus
+                            ? COLORS.rhombusStroke
+                            : (analysis.isRectangle
+                                ? '#4f46e5'
+                                : (analysis.isParallelogram ? '#d97706' : COLORS.nonRhombusStroke)));
                     ctx.lineWidth = 1.5;
 
                     ctx.beginPath();
